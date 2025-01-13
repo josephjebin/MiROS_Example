@@ -1,4 +1,4 @@
-Thank you to the GOAT Miro Samek from Quantum Leaps LLC (can be found on YouTube)
+This is a practice project for developing an RTOS with instructions from the GOAT Miro Samek from Quantum Leaps LLC (can be found on YouTube)
 
 # Sub-directories in this lesson:
 ```
