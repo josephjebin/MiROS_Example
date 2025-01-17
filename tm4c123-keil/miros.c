@@ -37,17 +37,39 @@ Q_DEFINE_THIS_FILE
 
 OSThread * volatile OS_curr; /* pointer to the current thread */
 OSThread * volatile OS_next; /* pointer to the next thread to run */
+// OS_threads[0] will be the idle thread
 OSThread * OS_threads[32 + 1];
 uint8_t OS_threadCount = 0; 
 uint8_t OS_currIdx = 0;
-void OS_init(void) {
-    /* set the PendSV interrupt priority to the lowest level 0xFF */
-    *(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16);
+
+// OS_readySet bits 0-31 corresponds to OS_threads[1-32]
+uint32_t OS_readySet; 
+OSThread idleThread;
+void main_idleThread() {
+    while (1) {
+        OS_onIdle(); 
+    }
+}
+void OS_init(void *stkSto, uint32_t stkSize) {
+	/* set the PendSV interrupt priority to the lowest level 0xFF */
+	*(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16);
+	
+	OSThread_start(&idleThread,
+                   &main_idleThread,
+                   stkSto, stkSize);
 }
 
 void OS_sched(void) {
-	OS_currIdx++; 
-	if(OS_currIdx == OS_threadCount) OS_currIdx = 0U; 
+	/* idle condition */
+	if(OS_readySet == 0U) {
+		OS_currIdx = 0; 
+	} else {
+		do {
+			OS_currIdx++; 
+			if(OS_currIdx == OS_threadCount) {OS_currIdx = 1U;}
+		} while((OS_readySet & (1U << (OS_currIdx - 1))) == 0U); 
+	}
+	
 	OS_next = OS_threads[OS_currIdx]; 
 
 	if(OS_next != OS_curr) {
@@ -63,6 +85,30 @@ void OS_run(void) {
 	__enable_irq();
 	
 	Q_ERROR(); 
+}
+
+void OS_tick(void) {
+	for(uint8_t i = 1U; i < OS_threadCount; i++) {
+		if(OS_threads[i]->timeout != 0U) {
+			OS_threads[i]->timeout--; 
+			if(OS_threads[i]->timeout == 0U) {
+				OS_readySet |= (1 << (i - 1));
+			}
+		}
+	}
+}
+
+void OS_delay(uint32_t ticks) {
+	__disable_irq();
+	
+	/* never call OS_delay form the idleThread */
+	Q_REQUIRE(OS_curr != OS_threads[0]); 
+	
+	OS_curr->timeout = ticks; 
+	OS_readySet &= ~(1 << (OS_currIdx - 1U)); 
+	OS_sched();
+	
+	__enable_irq();
 }
 
 void OSThread_start(
@@ -106,7 +152,11 @@ void OSThread_start(
     }
 		
 		Q_ASSERT(OS_threadCount < Q_DIM(OS_threads)); 
-		OS_threads[OS_threadCount++] = me; 
+		OS_threads[OS_threadCount] = me; 
+		if(OS_threadCount > 0U) {
+			OS_readySet |= (1 << (OS_threadCount - 1));
+		}
+		OS_threadCount++; 
 }
 
 /* inline assembly syntax for Compiler 6 (ARMCLANG) */
