@@ -13,7 +13,7 @@
 static uint32_t volatile l_tickCtr;
 
 void SysTick_Handler(void) {
-    ++l_tickCtr;
+    OS_tick();
 
     __disable_irq();
     OS_sched();
@@ -26,22 +26,6 @@ void BSP_init(void) {
 
     GPIOF_AHB->DIR |= (LED_RED | LED_BLUE | LED_GREEN);
     GPIOF_AHB->DEN |= (LED_RED | LED_BLUE | LED_GREEN); 
-}
-
-uint32_t BSP_tickCtr(void) {
-    uint32_t tickCtr;
-
-    __disable_irq();
-    tickCtr = l_tickCtr;
-    __enable_irq();
-
-    return tickCtr;
-}
-
-void BSP_delay(uint32_t ticks) {
-    uint32_t start = BSP_tickCtr();
-    while ((BSP_tickCtr() - start) < ticks) {
-    }
 }
 
 void BSP_ledRedOn(void) {
@@ -74,6 +58,10 @@ void OS_onStartup() {
 
 	/* set the SysTick interrupt priority (highest) */
 	NVIC_SetPriority(SysTick_IRQn, 0U);
+}
+
+void OS_onIdle(void) {
+	__WFI(); 
 }
 
 //............................................................................
