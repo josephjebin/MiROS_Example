@@ -42,18 +42,21 @@ int main(void) {
 
     /* fabricate Cortex-M ISR stack frame for blinky1 */
     OSThread_start(&blinky1,
-                   &main_blinky1,
-                   stack_blinky1, sizeof(stack_blinky1));
+										5U,
+										&main_blinky1,
+										stack_blinky1, sizeof(stack_blinky1));
 
     /* fabricate Cortex-M ISR stack frame for blinky2 */
-    OSThread_start(&blinky2,
-                   &main_blinky2,
-                   stack_blinky2, sizeof(stack_blinky2));
+    //OSThread_start(&blinky2,
+		//								2U,
+		//								&main_blinky2,
+		//								stack_blinky2, sizeof(stack_blinky2));
 	
     /* fabricate Cortex-M ISR stack frame for blinky3 */
 		OSThread_start(&blinky3, 
-									 &main_blinky3, 
-									 stack_blinky3, sizeof(stack_blinky3)); 
+										4U,
+										&main_blinky3, 
+										stack_blinky3, sizeof(stack_blinky3)); 
 	
     OS_run(); 
 
