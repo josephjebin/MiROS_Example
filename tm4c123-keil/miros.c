@@ -44,6 +44,9 @@ OSThread * OS_threads[32 + 1];
 uint32_t OS_readySet;
 uint32_t OS_delayedSet; 
 
+/* 	integer overestimation of log base 2.
+		not a terrible overestimation - its assymptote is (log2(x)) + 1
+*/
 #define LOG2(x) (32U - __builtin_clz(x))
 
 OSThread idleThread;
@@ -165,8 +168,10 @@ void OSThread_start(
     }
 		
 		OS_threads[priority] = me; 
-		//to-do: do we really need to save priority? isn't the thread's
-		//index in OS_threads good enough? who knows? 
+		// to-do: do we really need to save priority? isn't the thread's
+		// index in OS_threads good enough? 
+		// answer: yes we do need it for the delay method. in there, 
+		// we don't have the current thread's index in OS_threads
 		me->priority = priority; 
 		
 		if(priority > 0U) {
