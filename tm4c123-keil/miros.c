@@ -39,11 +39,16 @@ OSThread * volatile OS_curr; /* pointer to the current thread */
 OSThread * volatile OS_next; /* pointer to the next thread to run */
 // OS_threads[0] will be the idle thread
 OSThread * OS_threads[32 + 1];
-uint8_t OS_threadCount = 0; 
-uint8_t OS_currIdx = 0;
 
 // OS_readySet bits 0-31 corresponds to OS_threads[1-32]
-uint32_t OS_readySet; 
+uint32_t OS_readySet;
+uint32_t OS_delayedSet; 
+
+/* 	integer overestimation of log base 2.
+		not a terrible overestimation - its assymptote is (log2(x)) + 1
+*/
+#define LOG2(x) (32U - __builtin_clz(x))
+
 OSThread idleThread;
 void main_idleThread() {
     while (1) {
@@ -55,23 +60,19 @@ void OS_init(void *stkSto, uint32_t stkSize) {
 	*(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16);
 	
 	OSThread_start(&idleThread,
-                   &main_idleThread,
-                   stkSto, stkSize);
+									0,
+                  &main_idleThread,
+                  stkSto, stkSize);
 }
 
 void OS_sched(void) {
 	/* idle condition */
 	if(OS_readySet == 0U) {
-		OS_currIdx = 0; 
+		OS_next = OS_threads[0]; 
 	} else {
-		do {
-			OS_currIdx++; 
-			if(OS_currIdx == OS_threadCount) {OS_currIdx = 1U;}
-		} while((OS_readySet & (1U << (OS_currIdx - 1))) == 0U); 
+		OS_next = OS_threads[LOG2(OS_readySet)]; 
 	}
 	
-	OS_next = OS_threads[OS_currIdx]; 
-
 	if(OS_next != OS_curr) {
 		*(uint32_t volatile *)0xE000ED04 = (1U << 28);
 	}
@@ -88,24 +89,34 @@ void OS_run(void) {
 }
 
 void OS_tick(void) {
-	for(uint8_t i = 1U; i < OS_threadCount; i++) {
-		if(OS_threads[i]->timeout != 0U) {
-			OS_threads[i]->timeout--; 
-			if(OS_threads[i]->timeout == 0U) {
-				OS_readySet |= (1 << (i - 1));
-			}
+	uint32_t workingSet = OS_delayedSet; 
+	while(workingSet != 0U) {
+		OSThread *t = OS_threads[LOG2(workingSet)];
+		uint32_t bit; 
+		Q_ASSERT((t != (OSThread *)0) && t->timeout != 0U);
+		
+		bit = (1 << (t->priority - 1)); 
+		t->timeout--; 
+		if(t->timeout == 0U) {
+			OS_readySet |= bit; 
+			OS_delayedSet &= ~bit; ;
 		}
+		
+		workingSet &= ~bit;
 	}
 }
 
 void OS_delay(uint32_t ticks) {
+	uint32_t bit; 
 	__disable_irq();
 	
 	/* never call OS_delay form the idleThread */
 	Q_REQUIRE(OS_curr != OS_threads[0]); 
 	
 	OS_curr->timeout = ticks; 
-	OS_readySet &= ~(1 << (OS_currIdx - 1U)); 
+	bit = (1 << (OS_curr->priority - 1U));
+	OS_readySet &= ~bit;
+	OS_delayedSet |= bit;
 	OS_sched();
 	
 	__enable_irq();
@@ -113,6 +124,7 @@ void OS_delay(uint32_t ticks) {
 
 void OSThread_start(
     OSThread *me,
+		uint8_t priority, 
     OSThreadHandler threadHandler,
     void *stkSto, uint32_t stkSize)
 {
@@ -121,6 +133,10 @@ void OSThread_start(
     */
     uint32_t *sp = (uint32_t *)((((uint32_t)stkSto + stkSize) / 8) * 8);
     uint32_t *stk_limit;
+	
+		Q_REQUIRE((priority < Q_DIM(OS_threads))
+							&& (OS_threads[priority] == (OSThread *)0)); 
+		
 
     *(--sp) = (1U << 24);  /* xPSR */
     *(--sp) = (uint32_t)threadHandler; /* PC */
@@ -151,12 +167,16 @@ void OSThread_start(
         *sp = 0xDEADBEEFU;
     }
 		
-		Q_ASSERT(OS_threadCount < Q_DIM(OS_threads)); 
-		OS_threads[OS_threadCount] = me; 
-		if(OS_threadCount > 0U) {
-			OS_readySet |= (1 << (OS_threadCount - 1));
+		OS_threads[priority] = me; 
+		// to-do: do we really need to save priority? isn't the thread's
+		// index in OS_threads good enough? 
+		// answer: yes we do need it for the delay method. in there, 
+		// we don't have the current thread's index in OS_threads
+		me->priority = priority; 
+		
+		if(priority > 0U) {
+			OS_readySet |= (1 << (priority - 1));
 		}
-		OS_threadCount++; 
 }
 
 /* inline assembly syntax for Compiler 6 (ARMCLANG) */
