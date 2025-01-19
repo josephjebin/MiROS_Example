@@ -1,4 +1,6 @@
-This is a practice project for developing an RTOS with instructions from the GOAT Miro Samek from Quantum Leaps LLC (can be found on YouTube)
+This is a practice project for developing an RTOS with instructions from the GOAT Miro Samek from Quantum Leaps LLC (can be found on YouTube). 
+
+Under instruction from Miro Samek's RTOS course, I developed a preemptive (interrupt-based) priority-based scheduler for an RTOS, and this can be found in the diy_RTOS_preemptivePriorityBasedScheduler branch. 
 
 # Sub-directories in this lesson:
 ```
