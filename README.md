@@ -7,7 +7,12 @@ Under instruction from Miro Samek's RTOS course, I developed a preemptive (inter
 |
 +---CMSIS           - CMSIS (Cortex Microcontroller Software Interface Standard)
 |
-+---ek-tm4c123gxl   - support code for EK-TM4C123GXL (TivaC Launchpad) board 
++---ek-tm4c123gxl   - support code for EK-TM4C123GXL (TivaC Launchpad) board
+|
+\---qpc
+        \---include             - header files for RTOS
+        \---ports\arm-cm        - RTOS ported to my microcontroller (TM4C)
+        \---src                 - source files for RTOS
 |
 \---tm4c123-keil
         ...
